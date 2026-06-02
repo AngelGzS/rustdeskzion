@@ -1,0 +1,8 @@
+# Variables reales del despliegue (usar .env.example como plantilla)
+.env
+
+# Volumen/datos locales si se monta por bind-mount
+data/
+
+# Tooling de DNS con token cPanel en claro: NO debe subirse a GitHub
+Add-CpanelARecord.ps1

@@ -1,0 +1,32 @@
+services:
+  # hbbs = ID / Rendezvous server (registro de IDs, heartbeat, NAT hole-punching)
+  hbbs:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbs
+    # -r le dice a los clientes a qué host pedir relay. DEBE ser el dominio/IP pública.
+    command: hbbs -r ${RUSTDESK_RELAY_HOST}:21117
+    ports:
+      - "21115:21115"        # NAT type test (TCP)
+      - "21116:21116"        # ID registration / heartbeat (TCP)
+      - "21116:21116/udp"    # hole punching (UDP)  <-- imprescindible
+      - "21118:21118"        # web client (TCP, opcional)
+    volumes:
+      - rustdesk-data:/root  # persiste el par de claves id_ed25519
+    restart: unless-stopped
+    depends_on:
+      - hbbr
+
+  # hbbr = Relay server (reenvía el tráfico cuando el hole-punching directo falla)
+  hbbr:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbr
+    command: hbbr
+    ports:
+      - "21117:21117"        # relay (TCP)
+      - "21119:21119"        # web client relay (TCP, opcional)
+    volumes:
+      - rustdesk-data:/root  # comparte la MISMA clave que hbbs
+    restart: unless-stopped
+
+volumes:
+  rustdesk-data:
