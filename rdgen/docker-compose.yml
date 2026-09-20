@@ -1,0 +1,40 @@
+# Generador de clientes RustDesk personalizados (rdgen), auto-hospedado.
+# Fork: https://github.com/AngelGzS/rdgen  (upstream: bryangerlach/rdgen, GPL-3.0)
+#
+# Los builds NO corren aquí: este servicio solo dispara los workflows de
+# GitHub Actions del fork y recibe el artefacto. Cada build tarda 30-45 min.
+#
+# ⚠️ rdgen NO tiene autenticación ni CSRF (ver README.md de esta carpeta).
+#    El Basic Auth de Coolify es obligatorio, no opcional.
+services:
+  rdgen:
+    image: bryangerlach/rdgen:latest
+    container_name: rdgen
+    # El upstream publica 8000:8000, que CHOCA con el puerto de Coolify.
+    # Aquí solo se expone a la red interna; Traefik lo publica con TLS.
+    expose:
+      - "8000"
+    environment:
+      SECRET_KEY: ${RDGEN_SECRET_KEY}
+      GHUSER: ${GH_USER}
+      # Token fine-grained de GitHub con Actions: read & write sobre el fork.
+      GHBEARER: ${GH_BEARER}
+      GENURL: https://${RDGEN_HOST}
+      # Debe coincidir EXACTAMENTE con el secret ZIP_PASSWORD del fork.
+      ZIP_PASSWORD: ${RDGEN_ZIP_PASSWORD}
+      GHBRANCH: master
+      PROTOCOL: https
+      REPONAME: rdgen
+      SH_SECRET: ""
+    dns:
+      - 8.8.8.8
+    volumes:
+      - rdgen-exe:/opt/rdgen/exe
+      - rdgen-png:/opt/rdgen/png
+      - rdgen-zips:/opt/rdgen/temp_zips
+    restart: unless-stopped
+
+volumes:
+  rdgen-exe:
+  rdgen-png:
+  rdgen-zips:
