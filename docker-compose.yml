@@ -28,5 +28,31 @@ services:
       - rustdesk-data:/root  # comparte la MISMA clave que hbbs
     restart: unless-stopped
 
+  # rustdesk-api = API Server + panel de admin web (proyecto comunitario, open source)
+  # Panel en https://${RUSTDESK_API_HOST}/_admin/
+  # Este SÍ es HTTP: en Coolify se le asigna dominio y Traefik le pone TLS.
+  rustdesk-api:
+    image: lejianwen/rustdesk-api:latest
+    container_name: rustdesk-api
+    expose:
+      - "21114"              # HTTP. No se publica al host: entra por Traefik.
+    environment:
+      TZ: ${TZ:-America/Mexico_City}
+      RUSTDESK_API_LANG: ${RUSTDESK_API_LANG:-en}
+      # Lo que el panel le dirá a los clientes que configuren:
+      RUSTDESK_API_RUSTDESK_ID_SERVER: ${RUSTDESK_RELAY_HOST}:21116
+      RUSTDESK_API_RUSTDESK_RELAY_SERVER: ${RUSTDESK_RELAY_HOST}:21117
+      RUSTDESK_API_RUSTDESK_API_SERVER: https://${RUSTDESK_API_HOST}
+      # Clave pública de hbbs (id_ed25519.pub). Ver README §5.
+      RUSTDESK_API_RUSTDESK_KEY: ${RUSTDESK_KEY}
+      # Secreto para firmar los JWT de sesión del panel. Cadena aleatoria larga.
+      RUSTDESK_API_JWT_KEY: ${RUSTDESK_API_JWT_KEY}
+    volumes:
+      - rustdesk-api-data:/app/data   # sqlite del panel: usuarios, libreta, dispositivos
+    restart: unless-stopped
+    depends_on:
+      - hbbs
+
 volumes:
   rustdesk-data:
+  rustdesk-api-data:
