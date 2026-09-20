@@ -142,6 +142,25 @@ compartida, listado de dispositivos, cliente web y login OIDC.
   docker exec $(docker ps --format '{{.Names}}' | grep '^rustdesk-api-') sh -c 'ls -l /app'
   ```
 
+### Dónde está cada cosa en el panel
+
+La navegación no es obvia. Los equipos **no** están en `My`:
+
+| Quiero ver… | Menú | Ruta |
+|---|---|---|
+| **Todos los equipos** que reportan | **System → PeerManage** | `#/user/peer` |
+| Solo los equipos de mi usuario | My → MyPeer | `#/my/peer` |
+| Libretas de direcciones | My → AddressBookName / AddressBooks | `#/my/address_book` |
+
+`MyPeer` filtra por usuario propietario. Un equipo que reporta por `sysinfo` sin que
+nadie haya iniciado sesión desde el cliente queda con `user_id = 0`, así que
+**no sale en MyPeer, solo en PeerManage**. Si la lista se ve vacía, casi siempre
+es esto.
+
+Desde **PeerManage** también puedes mandar equipos a una libreta de direcciones
+con `AddToAddressBook` (uno) o `BatchAddToAB` (varios), sin necesidad de que el
+cliente inicie sesión.
+
 ### Lo que NO cubre
 
 `MUST_LOGIN` (obligar a iniciar sesión antes de poder conectar) requiere el fork
