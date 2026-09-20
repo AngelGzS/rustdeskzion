@@ -151,11 +151,48 @@ OIDC/LDAP. Desde $9.90/mes (Individual: 1 usuario, 20 dispositivos). Se migra
 cambiando la imagen a `rustdesk/rustdesk-server-pro` conservando el volumen de
 claves, así que los clientes no se reconfiguran.
 
+## 9. Seguridad
+
+### `ENCRYPTED_ONLY=1` — relay abierto
+
+Por defecto, **`hbbs` genera y exige clave, pero `hbbr` deja `KEY` vacío a
+propósito** para simplificar el setup. Consecuencia: cualquiera que apunte su
+cliente a `<tu-host>:21117` usa tu relay **sin tener tu Key** — tu ancho de banda,
+gratis, para desconocidos.
+
+El compose fija `ENCRYPTED_ONLY: "1"` en ambos servicios, lo que añade validación
+de clave a los dos.
+
+> ⚠️ Si ya tienes clientes desplegados **sin** la Key configurada, dejarán de
+> conectar en cuanto actives esto. Ponles la Key primero.
+
+### Panel: lo que protege y lo que no
+
+| | Estado |
+|---|---|
+| Sesión de escritorio remoto | **Cifrada extremo a extremo entre clientes.** Ni el relay ni el panel ven el contenido. |
+| `RUSTDESK_API_JWT_KEY` | Obligatoria. **Si queda vacía, el JWT no se activa.** Genera con `openssl rand -hex 32`. |
+| Captcha | Activo tras 3 intentos fallidos. |
+| Ban por IP | Activo tras 5 intentos. El default del proyecto es `0` = desactivado. |
+| 2FA / TOTP | **No existe** en el panel OSS. Solo en RustDesk Server Pro. |
+| Contraseña inicial de admin | Se imprime en los logs del primer arranque. **Cámbiala de inmediato.** |
+
+Lo que queda expuesto a internet es la libreta de direcciones (el inventario de
+equipos) y los logs de conexión. No es la sesion remota, pero tampoco es público:
+usa una contraseña de admin fuerte y considera restringir el acceso al panel por
+IP en Coolify si solo lo usa tu equipo.
+
+### Backup
+
+Dos volúmenes con datos irrecuperables. Ver **[docs/BACKUP.md](docs/BACKUP.md)**.
+
 ---
 
 ## Notas
 
 - **Persistencia:** la clave vive en el volumen `rustdesk-data`. No lo borres o cambiará
   la Key y todos los clientes tendrán que reconfigurarse.
-- **Backup:** respalda `id_ed25519` e `id_ed25519.pub` del volumen `rustdesk-data`,
-  y `rustdesk-api-data` (sqlite del panel: usuarios y libreta de direcciones).
+- **Backup:** ver [docs/BACKUP.md](docs/BACKUP.md). Respalda `rustdesk-data`
+  (claves + `db_v2.sqlite3`) y `rustdesk-api-data` (usuarios y libreta del panel).
+- **Base de datos:** ambas son SQLite. El panel acepta MySQL vía
+  `RUSTDESK_API_GORM_TYPE=mysql`, innecesario a esta escala.

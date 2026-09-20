@@ -6,3 +6,8 @@ data/
 
 # Tooling de DNS con token cPanel en claro: NO debe subirse a GitHub
 Add-CpanelARecord.ps1
+
+# Claves de RustDesk: la privada NUNCA debe subirse
+id_ed25519
+id_ed25519.pub
+*.tar.gz

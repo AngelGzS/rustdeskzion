@@ -5,22 +5,31 @@ services:
     container_name: rustdesk-hbbs
     # -r le dice a los clientes a qué host pedir relay. DEBE ser el dominio/IP pública.
     command: hbbs -r ${RUSTDESK_RELAY_HOST}:21117
+    environment:
+      TZ: ${TZ:-America/Mexico_City}
+      # Exige clave para conectar. Sin esto, hbbr acepta a CUALQUIERA (ver README §9).
+      # ⚠️ Los clientes ya desplegados sin Key dejarán de conectar hasta ponérsela.
+      ENCRYPTED_ONLY: "1"
     ports:
       - "21115:21115"        # NAT type test (TCP)
       - "21116:21116"        # ID registration / heartbeat (TCP)
       - "21116:21116/udp"    # hole punching (UDP)  <-- imprescindible
       - "21118:21118"        # web client (TCP, opcional)
     volumes:
-      - rustdesk-data:/root  # persiste el par de claves id_ed25519
+      - rustdesk-data:/root  # par de claves id_ed25519 + db_v2.sqlite3
     restart: unless-stopped
     depends_on:
       - hbbr
 
-  # hbbr = Relay server (reenvía el tráfico cuando el hole-punching directo falla)
+  # hbbr = Relay server (reenvía el tráfico cuando la conexión directa P2P falla)
   hbbr:
     image: rustdesk/rustdesk-server:latest
     container_name: rustdesk-hbbr
     command: hbbr
+    environment:
+      TZ: ${TZ:-America/Mexico_City}
+      # Imprescindible aquí: hbbr deja KEY vacío por defecto = relay abierto al mundo.
+      ENCRYPTED_ONLY: "1"
     ports:
       - "21117:21117"        # relay (TCP)
       - "21119:21119"        # web client relay (TCP, opcional)
@@ -45,10 +54,16 @@ services:
       RUSTDESK_API_RUSTDESK_API_SERVER: https://${RUSTDESK_API_HOST}
       # Clave pública de hbbs (id_ed25519.pub). Ver README §5.
       RUSTDESK_API_RUSTDESK_KEY: ${RUSTDESK_KEY}
-      # Secreto para firmar los JWT de sesión del panel. Cadena aleatoria larga.
+      # ── Seguridad ────────────────────────────────────────────────────────────
+      # Si JWT_KEY queda vacía, el JWT NO se activa. Es obligatoria.
       RUSTDESK_API_JWT_KEY: ${RUSTDESK_API_JWT_KEY}
+      RUSTDESK_API_JWT_EXPIRE_DURATION: "24h"
+      # Captcha tras N intentos fallidos (-1 desactiva, 0 siempre).
+      RUSTDESK_API_APP_CAPTCHA_THRESHOLD: "3"
+      # Ban por IP tras N intentos. El default del proyecto es 0 = DESACTIVADO.
+      RUSTDESK_API_APP_BAN_THRESHOLD: "5"
     volumes:
-      - rustdesk-api-data:/app/data   # sqlite del panel: usuarios, libreta, dispositivos
+      - rustdesk-api-data:/app/data   # sqlite del panel: usuarios, libreta, logs
     restart: unless-stopped
     depends_on:
       - hbbs
