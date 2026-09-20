@@ -128,14 +128,19 @@ compartida, listado de dispositivos, cliente web y login OIDC.
 
 - **URL:** `https://rustdesk-panel.tu-dominio.com/_admin/`
 - **Usuario:** `admin`
-- **Contraseña:** se genera en el primer arranque y **se imprime en los logs**
-  del contenedor (en versiones antiguas era `admin`). Míralos en Coolify o con:
+- **Contraseña:** se genera en el primer arranque y se imprime en los logs **de
+  ese contenedor**. Si el contenedor se recreó después (cualquier redeploy),
+  ese log se perdió y la contraseña es irrecuperable. En ese caso, reséteala:
 
   ```bash
-  docker logs $(docker ps -q -f ancestor=lejianwen/rustdesk-api:latest) 2>&1 | head -40
+  docker exec -w /app $(docker ps --format '{{.Names}}' | grep '^rustdesk-api-')     ./apimain reset-admin-pwd 'TuPasswordFuerte'
   ```
 
-  Cámbiala en cuanto entres.
+  Si la ruta del binario no coincide, localízalo con:
+
+  ```bash
+  docker exec $(docker ps --format '{{.Names}}' | grep '^rustdesk-api-') sh -c 'ls -l /app'
+  ```
 
 ### Lo que NO cubre
 
