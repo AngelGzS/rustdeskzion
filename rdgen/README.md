@@ -72,6 +72,40 @@ Los dos están parcheados igual. Para publicar el de 32 bits hay que decirle a
 WORKFLOW=generator-windows-x86.yml ARTIFACT=rustdesk-custom-client-windows-x86 GH_TOKEN=github_pat_xxx ../instalador/publicar.sh
 ```
 
+### El campo `custom` no es opcional
+
+`CLIENT_CONFIG_JSON` tiene una clave `custom` con **base64 de un JSON**. Dejarla
+vacía parece inocuo y no lo es: de ahí sale `app-name`, que decide la ruta de
+instalación, los accesos directos, el servicio y el registro. Sin ella el cliente
+se instala como `C:\Program Files\RustDesk`, no crea accesos directos y queda
+pidiendo que lo instales otra vez. Los `sed` del workflow solo cambian recursos
+cosméticos del ejecutable, no el nombre interno.
+
+De ahí sale también la contraseña permanente.
+
+```json
+{
+  "app-name": "ZionDesk",
+  "password": "...",
+  "default-settings":  { "verification-method": "use-permanent-password" },
+  "override-settings": { "custom-rendezvous-server": "...", "relay-server": "...",
+                         "api-server": "...", "key": "..." }
+}
+```
+
+`default-settings` se puede cambiar en el equipo; `override-settings` no. Por eso
+la contraseña va en el primero y la infraestructura en el segundo.
+
+Esto funciona porque rdgen parchea RustDesk para saltarse la verificación de
+firma de ese archivo (es un mecanismo de la versión Pro). **Cada workflow usa un
+parche distinto y escribe un nombre de archivo distinto** — son coherentes entre
+sí, pero no los mezcles:
+
+| | Parche | Archivo |
+|---|---|---|
+| x64 | `allowCustom.py` | `custom_.txt` |
+| x86 | `allowCustom.diff` | `custom.txt` |
+
 ### ⚠️ Windows 7 no está garantizado
 
 RustDesk publica builds x86-sciter hasta 1.4.6, pero **sus desarrolladores han
