@@ -55,6 +55,38 @@ export GH_TOKEN=github_pat_xxx     # fine-grained, solo lectura sobre rdgen-zion
 
 Queda en https://rustdesk-panel.zionnet.com.mx/instalador/
 
+## Las dos variantes
+
+| | 64 bits | 32 bits |
+|---|---|---|
+| Workflow | `generator-windows.yml` | `generator-windows-x86.yml` |
+| Target | `x86_64-pc-windows-msvc` | `i686-pc-windows-msvc` |
+| Interfaz | Flutter | **sciter** |
+| Artefacto | `rustdesk-custom-client-windows` | `rustdesk-custom-client-windows-x86` |
+| Para | Windows 10/11 | **Windows 7** de las sucursales |
+
+Los dos están parcheados igual. Para publicar el de 32 bits hay que decirle a
+`publicar.sh` cuál bajar:
+
+```bash
+WORKFLOW=generator-windows-x86.yml ARTIFACT=rustdesk-custom-client-windows-x86 GH_TOKEN=github_pat_xxx ../instalador/publicar.sh
+```
+
+### ⚠️ Windows 7 no está garantizado
+
+RustDesk publica builds x86-sciter hasta 1.4.6, pero **sus desarrolladores han
+dicho que no van a arreglar problemas de Windows 7** («sistema muerto»), y hay
+reportes de fallos con `1.4.3-x86-sciter` justo en Windows 7 SP1 de 32 bits.
+
+Si 1.4.6 no arranca en una sucursal, se prueba una versión anterior sin tocar
+nada más:
+
+```bash
+gh workflow run generator-windows-x86.yml -R AngelGzS/rdgen-zion -f version=1.3.9
+```
+
+Probar **siempre** en la VM copia de sucursal antes de desplegar a una tienda.
+
 ## Cambiar la configuración del cliente
 
 Está en el secret `CLIENT_CONFIG_JSON`. Para editarlo:
