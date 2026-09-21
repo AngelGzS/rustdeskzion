@@ -62,6 +62,18 @@ services:
       RUSTDESK_API_APP_CAPTCHA_THRESHOLD: "3"
       # Ban por IP tras N intentos. El default del proyecto es 0 = DESACTIVADO.
       RUSTDESK_API_APP_BAN_THRESHOLD: "5"
+    # El panel enlaza el boton "Web Client" a /webclient2, pero la imagen v2.7
+    # no incluye resources/web2 (es un preview que nunca se publico). Copiamos
+    # el cliente v1, que si viene, para que la ruta deje de dar 404.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ ! -d resources/web2 ] && [ -d resources/web ]; then
+          cp -r resources/web resources/web2
+          echo "web2 creado a partir del cliente web v1"
+        fi
+        exec ./apimain
     volumes:
       - rustdesk-api-data:/app/data   # sqlite del panel: usuarios, libreta, logs
     restart: unless-stopped
