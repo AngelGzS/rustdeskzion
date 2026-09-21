@@ -1,21 +1,51 @@
-# Descarga del cliente RustDesk personalizado.
-# Sirve los instaladores en https://rustdesk-panel.zionnet.com.mx/instalador
+# Descarga de clientes RustDesk personalizados, protegida con contraseña.
+# https://rustdesk-panel.zionnet.com.mx/instalador/
 #
 # Traefik enruta por longitud de regla, así que PathPrefix(/instalador) gana
-# sobre el PathPrefix(/) del panel. Coolify quita el prefijo (Strip Prefixes),
-# por lo que nginx ve "/" y sirve la raíz del volumen.
+# sobre el PathPrefix(/) del panel. Coolify quita el prefijo, nginx ve "/".
 #
-# Los archivos se suben al volumen con docker cp (ver README.md de esta carpeta).
+# El Basic Auth lo hace nginx, no Coolify: su toggle de Basic Auth no existe
+# para servicios de tipo compose, y meter middlewares de Traefik a mano es
+# frágil porque Coolify regenera los labels del router.
+#
+# INSTALADOR_HTPASSWD_B64 = base64 de una línea "usuario:hash_apr1".
+# En base64 a propósito: el hash apr1 empieza por '$apr1$' y docker compose
+# interpola las variables del .env, así que '$apr1' se expandía a vacío y el
+# htpasswd acababa siendo "zion:" sin hash. Comprobado.
 services:
   instalador:
     image: nginx:alpine
     container_name: rustdesk-instalador
     expose:
       - "80"
-    # Config en una sola línea a propósito: un printf multilínea dentro de un
-    # escalar plegado de YAML es frágil (el plegado cambia los saltos).
-    # autoindex on => listado navegable de lo que haya en /srv.
-    command: ["/bin/sh","-c","printf 'server { listen 80; root /srv; autoindex on; autoindex_exact_size off; autoindex_localtime on; default_type application/octet-stream; }' > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+    environment:
+      HTPASSWD_B64: ${INSTALADOR_HTPASSWD_B64}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ -z "$$HTPASSWD_B64" ]; then
+          echo "FALTA INSTALADOR_HTPASSWD_B64: no arranco sin proteccion." >&2
+          exit 1
+        fi
+        echo "$$HTPASSWD_B64" | base64 -d > /etc/nginx/.htpasswd
+        # El worker de nginx corre como 'nginx', no como root: con 600 no
+        # puede leer el archivo y responde 500 en vez de pedir credenciales.
+        chown root:nginx /etc/nginx/.htpasswd
+        chmod 640 /etc/nginx/.htpasswd
+        cat > /etc/nginx/conf.d/default.conf <<'NGINX'
+        server {
+            listen 80;
+            root /srv;
+            autoindex on;
+            autoindex_exact_size off;
+            autoindex_localtime on;
+            default_type application/octet-stream;
+            auth_basic "Zion Net - Instaladores";
+            auth_basic_user_file /etc/nginx/.htpasswd;
+        }
+        NGINX
+        exec nginx -g 'daemon off;'
     volumes:
       - instalador-files:/srv
     restart: unless-stopped

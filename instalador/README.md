@@ -29,13 +29,41 @@ docker exec "$CONT" ls -lh /srv
 Queda disponible al instante en
 `https://rustdesk-panel.zionnet.com.mx/instalador/ZionDesk.exe`
 
-## Ojo: es público
+## Acceso
 
-Cualquiera con la URL puede descargar. Es lo que quieres para que un cliente
-se lo instale solo, pero significa que el ejecutable con tu servidor y tu Key
-está accesible. La Key pública no es un secreto (va en todos los clientes),
-pero no publiques la URL más de lo necesario.
+Protegido con Basic Auth. Usuario **zion**; la contraseña está en la variable
+`INSTALADOR_HTPASSWD_B64` del recurso en Coolify (hash apr1, no reversible) y
+en el gestor de contraseñas del equipo.
 
-Si quisieras cerrarlo, este recurso sí admitiría Basic Auth recreándolo como
-*application* desde el repo — pero entonces el cliente tendría que teclear
-usuario y contraseña para bajarlo.
+El Basic Auth lo hace **nginx**, no Coolify: su toggle no existe para servicios
+de tipo compose, y añadir middlewares de Traefik a mano es frágil porque
+Coolify regenera los labels del router en cada deploy.
+
+El contenedor **falla al arrancar si la variable falta**, para que un despiste
+de configuración no deje la ruta abierta.
+
+### Dos trampas, ya resueltas
+
+- **El hash va en base64.** Empieza por `$apr1$` y docker compose interpola las
+  variables del `.env`, así que `$apr1` se expandía a vacío y el htpasswd
+  acababa siendo `zion:` sin hash — es decir, sin protección real.
+- **`chmod 640` y `chown root:nginx`.** El worker de nginx corre como `nginx`,
+  no como root: con `600` no puede leer el archivo y responde 500 en vez de
+  pedir credenciales.
+
+### Cambiar la contraseña
+
+```bash
+python -c "from passlib.hash import apr_md5_crypt as h; import base64,getpass;   print(base64.b64encode(('zion:'+h.hash(getpass.getpass())).encode()).decode())"
+```
+
+Pega el resultado en `INSTALADOR_HTPASSWD_B64` y redespliega.
+
+### Comprobar
+
+```bash
+curl -o /dev/null -w '%{http_code}
+' https://rustdesk-panel.zionnet.com.mx/instalador/          # 401
+curl -o /dev/null -w '%{http_code}
+' -u zion:LA_PASS https://rustdesk-panel.zionnet.com.mx/instalador/  # 200
+```
