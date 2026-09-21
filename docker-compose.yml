@@ -14,7 +14,11 @@ services:
       - "21115:21115"        # NAT type test (TCP)
       - "21116:21116"        # ID registration / heartbeat (TCP)
       - "21116:21116/udp"    # hole punching (UDP)  <-- imprescindible
-      - "21118:21118"        # web client (TCP, opcional)
+      # 21118 NO se publica al host: Traefik llega por la red interna y lo
+      # sirve como wss en /ws/id. Publicarlo solo lo expone en claro, y hbbs
+      # se fia sin validar de X-Real-IP / X-Forwarded-For en los websockets,
+      # asi que quien lo alcance directo puede falsear la IP de origen.
+      # Ojo: un "ufw deny" NO bastaria, Docker inserta reglas que lo saltan.
     volumes:
       - rustdesk-data:/root  # par de claves id_ed25519 + db_v2.sqlite3
     restart: unless-stopped
@@ -32,7 +36,7 @@ services:
       ENCRYPTED_ONLY: "1"
     ports:
       - "21117:21117"        # relay (TCP)
-      - "21119:21119"        # web client relay (TCP, opcional)
+      # 21119 tampoco se publica: Traefik lo sirve como wss en /ws/relay.
     volumes:
       - rustdesk-data:/root  # comparte la MISMA clave que hbbs
     restart: unless-stopped
