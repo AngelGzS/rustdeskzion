@@ -1,0 +1,24 @@
+# Descarga del cliente RustDesk personalizado.
+# Sirve los instaladores en https://rustdesk-panel.zionnet.com.mx/instalador
+#
+# Traefik enruta por longitud de regla, así que PathPrefix(/instalador) gana
+# sobre el PathPrefix(/) del panel. Coolify quita el prefijo (Strip Prefixes),
+# por lo que nginx ve "/" y sirve la raíz del volumen.
+#
+# Los archivos se suben al volumen con docker cp (ver README.md de esta carpeta).
+services:
+  instalador:
+    image: nginx:alpine
+    container_name: rustdesk-instalador
+    expose:
+      - "80"
+    # Config en una sola línea a propósito: un printf multilínea dentro de un
+    # escalar plegado de YAML es frágil (el plegado cambia los saltos).
+    # autoindex on => listado navegable de lo que haya en /srv.
+    command: ["/bin/sh","-c","printf 'server { listen 80; root /srv; autoindex on; autoindex_exact_size off; autoindex_localtime on; default_type application/octet-stream; }' > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+    volumes:
+      - instalador-files:/srv
+    restart: unless-stopped
+
+volumes:
+  instalador-files:
