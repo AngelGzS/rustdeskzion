@@ -54,6 +54,9 @@ services:
       RUSTDESK_API_RUSTDESK_API_SERVER: https://${RUSTDESK_API_HOST}
       # Clave pública de hbbs (id_ed25519.pub). Ver README §5.
       RUSTDESK_API_RUSTDESK_KEY: ${RUSTDESK_KEY}
+      # Websocket del cliente web. El cliente le añade /ws/id y /ws/relay,
+      # que Traefik enruta a hbbs:21118 y hbbr:21119.
+      RUSTDESK_API_RUSTDESK_WS_HOST: ${RUSTDESK_WS_HOST}
       # ── Seguridad ────────────────────────────────────────────────────────────
       # Si JWT_KEY queda vacía, el JWT NO se activa. Es obligatoria.
       RUSTDESK_API_JWT_KEY: ${RUSTDESK_API_JWT_KEY}
