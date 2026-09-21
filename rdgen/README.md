@@ -1,92 +1,88 @@
-# rdgen — generador de clientes RustDesk personalizados
+# Generador de clientes RustDesk personalizados
 
-Auto-hospedado. Genera instaladores de RustDesk con el servidor, la Key y la marca
-ya dentro, para no configurar cada equipo a mano.
+Compila un RustDesk con **nuestro servidor, nuestra Key y nuestra marca** ya
+embebidos, para no configurar equipo por equipo.
 
-- Upstream: [bryangerlach/rdgen](https://github.com/bryangerlach/rdgen) (GPL-3.0)
-- Fork: [AngelGzS/rdgen](https://github.com/AngelGzS/rdgen)
+- Repo: **[AngelGzS/rdgen-zion](https://github.com/AngelGzS/rdgen-zion)** (privado)
+- Basado en [bryangerlach/rdgen](https://github.com/bryangerlach/rdgen) (GPL-3.0)
 
-## Cómo funciona
+## Sin servidor rdgen
 
-rdgen **no compila nada**. Es una interfaz Django que dispara los workflows de
-GitHub Actions del fork; el build corre en los runners de GitHub (30-45 min) y el
-artefacto se devuelve al servidor rdgen vía `GENURL`.
+El diseño original monta una app Django pública: el workflow baja la config de
+`GENURL` y devuelve el `.exe` por POST a `GENURL/save_custom_client`. Esa app
+**no tiene autenticación ni CSRF**, así que no la exponemos. No hay ningún
+recurso rdgen desplegado en Coolify.
 
-Por eso **rdgen tiene que ser alcanzable desde internet**: si no, Actions no puede
-entregar el ejecutable. No sirve dejarlo solo en la red interna.
+En su lugar el workflow está parcheado:
 
-## ⚠️ Seguridad — leer antes de desplegar
-
-El upstream **no tiene autenticación ni CSRF**:
-
-- `rdgenerator/views.py` y `api_views.py`: cero `login_required` / `IsAuthenticated`.
-- `rdgen/settings.py`: `django.middleware.csrf.CsrfViewMiddleware` está comentado.
-
-Publicado tal cual, cualquiera que dé con la URL puede lanzar builds (quemando tus
-minutos de GitHub Actions) y generar clientes apuntando a tu servidor RustDesk.
-
-**No lo despliegues con el dominio público hasta resolver esto.** Ver «Pendiente»
-más abajo.
-
-## Cambios respecto al compose del upstream
-
-| Upstream | Aquí | Por qué |
-|---|---|---|
-| `ports: 8000:8000` | `expose: 8000` | El 8000 del host es **Coolify**. Publicarlo lo tumba. Traefik lo sirve con TLS. |
-| bind mounts `./exe`, `./png`, `./temp_zips` | volúmenes con nombre | Coolify no maneja bien rutas relativas. |
-| secretos en claro en el YAML | variables de entorno | No van al repo. |
-
-## Estado del despliegue
-
-| Pieza | Estado |
+| Original | Aquí |
 |---|---|
-| Fork `AngelGzS/rdgen` | ✅ creado |
-| GitHub Actions en el fork | ✅ habilitado (13 workflows) |
-| Secret `GENURL` | ✅ `https://rdgen.zionnet.com.mx` |
-| Secret `ZIP_PASSWORD` | ✅ generado |
-| Recurso en Coolify | ✅ `dgkgccwok4c48c4ssw0wgkks` (proyecto rustdesk, **sin desplegar**) |
-| `RDGEN_HOST`, `GH_USER`, `RDGEN_SECRET_KEY`, `RDGEN_ZIP_PASSWORD` | ✅ puestas |
-| `SERVICE_FQDN_RDGEN_8000` | ✅ puesta |
-| `GH_BEARER` | ❌ **pendiente** — token fine-grained, lo tienes que crear tú |
-| DNS `rdgen.zionnet.com.mx` | ❌ **pendiente** — registro A al VPS |
-| Protección de acceso | ❌ **pendiente** — ver abajo |
+| Baja la config de `GENURL` | La construye desde el secret `CLIENT_CONFIG_JSON` |
+| Devuelve el `.exe` por POST | Lo publica con `actions/upload-artifact` |
+| POST a `GENURL/cleanzip` | Eliminado |
 
-## Pendiente: crear el token de GitHub
+El cifrado del zip intermedio se mantiene igual (`ZIP_PASSWORD`), así que el
+resto del workflow —700 líneas— queda intacto.
 
-1. GitHub → foto de perfil → Settings → Developer Settings
-2. Personal access tokens → **Fine-grained tokens** → Generate new token
-3. Repository access → **Only select repositories** → `AngelGzS/rdgen`
-4. Permissions → Repository permissions → **Actions: Read and write**
-5. Copia el token y pégalo en la variable `GH_BEARER` del recurso en Coolify
+## Por qué un repo privado y no un fork
 
-## Pendiente: protección de acceso
+**Un fork de un repo público en GitHub es siempre público**; no existe la
+opción de hacerlo privado. Eso dejaría a la vista los logs de build y los
+artefactos. Por eso `rdgen-zion` es un repo privado normal con el código
+copiado, no un fork.
 
-Coolify 4.0.0-beta.463 **no ofrece Basic Auth para servicios de tipo compose**
-(solo para *applications*). Opciones, sin resolver todavía:
+Coste: los repos privados gastan cuota de Actions. Un build de Windows son
+~45 min y los runners Windows cuentan x2, o sea ~90 min de los 2000/mes del
+plan gratuito. Da para unos 20 builds al mes.
 
-1. Recrear el recurso como *application* apuntando a este repo
-   (`docker_compose_location: /rdgen/docker-compose.yml`), que sí expone el toggle
-   de Basic Auth.
-2. Añadir labels de Traefik `basicauth` al compose, con el riesgo de que Coolify
-   sobrescriba el `middlewares` del router que genera.
-3. Levantarlo solo cuando se vaya a generar un cliente y apagarlo después. Es el
-   modo de uso real (se usa unas pocas veces al año), y reduce la ventana a casi cero.
+> Si algún día hay que reindexar los workflows tras mover el repo: GitHub solo
+> indexa los de `workflow_dispatch` cuando llegan en un push que los modifica.
+> Un commit vacío no basta; hay que tocar los archivos.
 
-## Uso, una vez arriba
+## Generar un cliente
 
-1. Entrar a `https://rdgen.zionnet.com.mx`
-2. Rellenar servidor, Key, nombre de la app e icono
-3. Lanzar el build y esperar 30-45 min
-4. Descargar el `.exe` (viene en un zip protegido con `ZIP_PASSWORD`)
-
-Notas del upstream: iconos cuadrados (256x256), y sin acentos ni caracteres
-especiales en el nombre de la app ni del archivo.
-
-### Datos de tu servidor
-
+```bash
+gh workflow run generator-windows.yml -R AngelGzS/rdgen-zion -f version=1.4.6
+gh run watch -R AngelGzS/rdgen-zion
 ```
-ID Server:    rustdesk.zionnet.com.mx
-Relay Server: rustdesk.zionnet.com.mx
-API Server:   https://rustdesk-panel.zionnet.com.mx
-Key:          BZ7q4kmCfxn90MqWjs9+M3DGUIwYWfhg5UtgfNPnH88=
+
+Tarda 30-45 min. Luego, **en el VPS**:
+
+```bash
+export GH_TOKEN=github_pat_xxx     # fine-grained, solo lectura sobre rdgen-zion
+../instalador/publicar.sh
 ```
+
+Queda en https://rustdesk-panel.zionnet.com.mx/instalador/
+
+## Cambiar la configuración del cliente
+
+Está en el secret `CLIENT_CONFIG_JSON`. Para editarlo:
+
+```bash
+gh secret set CLIENT_CONFIG_JSON -R AngelGzS/rdgen-zion < client_config.json
+```
+
+Dos trampas del formato, ya resueltas en la config actual:
+
+- `decrypt-secrets` **descarta las claves vacías**. Si `iconlink_url` va en
+  blanco, la variable no existe y la condición `!= 'false'` se cumple, así que
+  los pasos de icono se ejecutan y fallan. Hay que poner el string `"false"`.
+- `urlLink` y `downloadLink` llevan los valores por defecto de rustdesk
+  (`https://rustdesk.com`, `https://rustdesk.com/download`) precisamente para
+  que esos pasos de `sed` se salten.
+
+Config actual: servidor `rustdesk.zionnet.com.mx`, app **ZionDesk**, empresa
+**Zion Net**, sin icono personalizado.
+
+## ⚠️ Verificar cada build
+
+El paso que inyecta servidor y Key es `continue-on-error: true` en el upstream.
+**Si falla, el build termina en verde pero el cliente apunta a los servidores
+públicos de RustDesk.** Nunca des por bueno el ✅ sin comprobarlo:
+
+```bash
+strings ZionDesk.exe | grep -F 'rustdesk.zionnet.com.mx'
+```
+
+Si no sale nada, el build salió mal aunque GitHub lo marque correcto.
